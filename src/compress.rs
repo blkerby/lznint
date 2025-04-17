@@ -1,5 +1,6 @@
 use crate::{Command, Reference};
 
+/// Compresses the provided data.
 pub fn compress(src: &[u8]) -> Vec<u8> {
     let mut dst = Vec::new();
 
@@ -139,7 +140,7 @@ fn backreference_at(src: &[u8], i: usize, j: usize) -> (bool, usize) {
     (false, 0)
 }
 
-impl<'a> Command<'a> {
+impl Command<'_> {
     fn len(&self) -> usize {
         match self {
             Command::Copy(buf) => buf.len(),

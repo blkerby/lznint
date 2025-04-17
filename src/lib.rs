@@ -1,3 +1,6 @@
+//! A library for compressing and decompressing data using the LZ-based compression format used by
+//! Nintendo in Super Metroid.
+
 mod compress;
 mod decompress;
 

@@ -1,6 +1,7 @@
 use crate::{Command, Reference};
 use thiserror::Error;
 
+/// Decompresses the provided data.
 pub fn decompress(mut src: &[u8]) -> Result<Vec<u8>, DecompressionError> {
     let mut dst = Vec::new();
     loop {
@@ -40,6 +41,7 @@ pub fn decompress(mut src: &[u8]) -> Result<Vec<u8>, DecompressionError> {
     Ok(dst)
 }
 
+/// Errors that can occur during decompression.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum DecompressionError {
     #[error("Unexpected end of input")]
