@@ -1,6 +1,12 @@
 [package]
 name = "lznint"
-version = "0.1.0"
+authors = ["NobodyNada"]
+description = "A library for compressing and decompressing data using the LZ-based compression format used by Nintendo in Super Metroid."
+repository = "https://github.com/NobodyNada/lznint"
+documentation = "https://docs.rs/lznint"
+readme = "README.md"
+license = "CC0-1.0"
+version = "1.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
