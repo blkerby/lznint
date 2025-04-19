@@ -91,7 +91,12 @@ fn find_best_backreference(src: &[u8], i: usize) -> Option<Command> {
     let mut best_relative = (0, false, 0); // a (j, inv, len) pair
     let farthest_relative = i - std::cmp::min(i, 255);
     for j in farthest_relative..i {
-        let (inv, len) = backreference_at(src, i, j);
+        let (inv, mut len) = backreference_at(src, i, j);
+        if inv {
+            // Maximum length for an inverted relative backreference is 0x300
+            // due to collision with stop command
+            len = len.min(0x300);
+        }
         // if all else is equal, non-inverted relative matches save a byte (because relative
         // inverted can only be encoded as an extended command)
         if len > best_relative.2 || len == best_relative.2 && !inv && best_relative.1 {
@@ -212,6 +217,9 @@ impl Command<'_> {
                     }
                     Reference::Relative(offset) => {
                         assert_ne!(*offset, 0);
+                        if *invert {
+                            assert!(*len <= 0x300);
+                        }
                         _write(6 | *invert as u8, *len, &[*offset], dst)
                     }
                 };

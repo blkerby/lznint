@@ -110,6 +110,16 @@ mod test {
             vec![0x63, 1, 0xFC, 0x07, 0x4, 0xFF]
         );
 
+        // a relative inverted backreference must not collide with the stop symbol
+        let tricky = [1, 2, 3, 4]
+            .into_iter()
+            .chain([!1, !2, !3, !4, 1, 2, 3, 4].into_iter().cycle().take(0x400))
+            .collect::<Vec<u8>>();
+        assert_eq!(
+            compress(&tricky),
+            [0x63, 1, 0xFE, 0xFF, 0x4, 0xF8, 0xFF, 0xF8, 0xFF]
+        );
+
         // create a 512-byte-long non-compressible sequence
         let seq = || {
             std::iter::successors(Some(1u8), |&x| Some(x.wrapping_add(3)))
