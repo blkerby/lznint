@@ -92,7 +92,7 @@ fn get_candidates(src: &[u8], i: usize) -> Vec<Command> {
 
 fn find_best(src: &[u8], i: usize) -> Command {
     let mut candidates = get_candidates(src, i);
-    
+
     // We want to prioritize earlier candidates in case of ties, but max_by prioritizes last.
     // So reverse the order:
     candidates.reverse();
@@ -154,7 +154,7 @@ fn find_best_backreference(src: &[u8], i: usize) -> Option<Command> {
 
 fn backreference_at(src: &[u8], i: usize, j: usize) -> (bool, usize) {
     let len = std::iter::zip(src[i..].iter().copied(), src[j..].iter().copied())
-        .take_while(|(a, b)| *a == *b )
+        .take_while(|(a, b)| *a == *b)
         .count();
     let len = std::cmp::min(len, Command::MAX_LEN);
     if len > 0 {
