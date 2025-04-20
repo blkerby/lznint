@@ -1,3 +1,5 @@
+// Compression by NobodyNada, with some small tweaks by Maddo,
+// to optimize a bit more for decompression speed compared to space.
 use crate::{Command, Reference};
 
 /// Compresses the provided data.
@@ -8,8 +10,10 @@ pub fn compress(src: &[u8]) -> Vec<u8> {
     let mut prev_copy = Vec::new();
     while i < src.len() {
         let best = find_best(src, i);
-        // The new command has to save at least 2 bytes to be worthwhile over a copy
-        if best.len() >= best.cost() + 2 {
+        // We consider that the new command has to save at least 3 bytes to be worthwhile over a copy.
+        // It could save space with only 2 (or possibly 1) byte, but decompression will
+        // be faster by using a larger copy block.
+        if best.len() >= best.cost() + 3 {
             if !prev_copy.is_empty() {
                 Command::Copy(&prev_copy[..]).write(&mut dst);
                 prev_copy = Vec::new();
@@ -31,54 +35,67 @@ pub fn compress(src: &[u8]) -> Vec<u8> {
     dst
 }
 
+fn get_candidates(src: &[u8], i: usize) -> Vec<Command> {
+    let mut candidates = vec![];
+
+    if src.len() - i >= 2 {
+        let word = u16::from_le_bytes([src[i], src[i + 1]]);
+        let mut len = src[i..]
+            .chunks_exact(2)
+            .take_while(|c| u16::from_le_bytes((*c).try_into().unwrap()) == word)
+            .count()
+            * 2;
+
+        // A word fill can have a partial last word
+        if src.get(i + len).copied() == Some(word as u8) {
+            len += 1;
+        }
+
+        let len = std::cmp::min(len, Command::MAX_LEN);
+        candidates.push(Command::WordFill { data: word, len });
+        if len == Command::MAX_LEN {
+            // Skip considering other block types if this is a max-size block:
+            return candidates;
+        }
+    }
+
+    candidates.push(Command::ByteFill {
+        data: src[i],
+        len: std::cmp::min(
+            src[i..].iter().take_while(|&&x| x == src[i]).count(),
+            Command::MAX_LEN,
+        ),
+    });
+
+    candidates.push(Command::Incrementing {
+        start: src[i],
+        len: std::cmp::min(
+            std::iter::zip(
+                std::iter::successors(Some(src[i]), |x| Some(x.wrapping_add(1))),
+                src[i..].iter().copied(),
+            )
+            .take_while(|(a, b)| a == b)
+            .count(),
+            Command::MAX_LEN,
+        ),
+    });
+
+    if let Some(cand) = find_best_backreference(src, i) {
+        candidates.push(cand);
+    }
+
+    candidates
+}
+
 fn find_best(src: &[u8], i: usize) -> Command {
-    let candidates = [
-        // byte fill
-        Some(Command::ByteFill {
-            data: src[i],
-            len: std::cmp::min(
-                src[i..].iter().take_while(|&&x| x == src[i]).count(),
-                Command::MAX_LEN,
-            ),
-        }),
-        // word fill
-        if src.len() - i < 2 {
-            None
-        } else {
-            let word = u16::from_le_bytes([src[i], src[i + 1]]);
-            let mut len = src[i..]
-                .chunks_exact(2)
-                .take_while(|c| u16::from_le_bytes((*c).try_into().unwrap()) == word)
-                .count()
-                * 2;
-
-            // A word fill can have a partial last word
-            if src.get(i + len).copied() == Some(word as u8) {
-                len += 1;
-            }
-
-            let len = std::cmp::min(len, Command::MAX_LEN);
-            Some(Command::WordFill { data: word, len })
-        },
-        // incrementing
-        Some(Command::Incrementing {
-            start: src[i],
-            len: std::cmp::min(
-                std::iter::zip(
-                    std::iter::successors(Some(src[i]), |x| Some(x.wrapping_add(1))),
-                    src[i..].iter().copied(),
-                )
-                .take_while(|(a, b)| a == b)
-                .count(),
-                Command::MAX_LEN,
-            ),
-        }),
-        find_best_backreference(src, i),
-    ];
+    let mut candidates = get_candidates(src, i);
+    
+    // We want to prioritize earlier candidates in case of ties, but max_by prioritizes last.
+    // So reverse the order:
+    candidates.reverse();
 
     candidates
         .into_iter()
-        .flatten()
         .max_by(|a, b| {
             let a = a.len() as f32 / a.cost() as f32;
             let b = b.len() as f32 / b.cost() as f32;
@@ -133,14 +150,12 @@ fn find_best_backreference(src: &[u8], i: usize) -> Option<Command> {
 }
 
 fn backreference_at(src: &[u8], i: usize, j: usize) -> (bool, usize) {
-    for invert in [false, true] {
-        let len = std::iter::zip(src[i..].iter().copied(), src[j..].iter().copied())
-            .take_while(|(a, b)| *a == if invert { !b } else { *b })
-            .count();
-        let len = std::cmp::min(len, Command::MAX_LEN);
-        if len > 0 {
-            return (invert, len);
-        }
+    let len = std::iter::zip(src[i..].iter().copied(), src[j..].iter().copied())
+        .take_while(|(a, b)| *a == *b )
+        .count();
+    let len = std::cmp::min(len, Command::MAX_LEN);
+    if len > 0 {
+        return (false, len);
     }
     (false, 0)
 }
@@ -162,26 +177,23 @@ impl Command<'_> {
     }
 
     fn cost(&self) -> usize {
+        // Includes tweaks to assign higher costs to block types
+        // that are slower to decompress:
         let args = match self {
             Command::Copy(buf) => buf.len(),
             Command::ByteFill { data: _, len: _ } => 1,
             Command::WordFill { data: _, len: _ } => 2,
-            Command::Incrementing { start: _, len: _ } => 1,
-            Command::Backreference {
-                src: Reference::Relative(_),
-                invert: true,
-                len,
-            } if *len <= 32 => 2,
+            Command::Incrementing { start: _, len: _ } => 2,
             Command::Backreference {
                 src: Reference::Relative(_),
                 invert: _,
                 len: _,
-            } => 1,
+            } => 3,
             Command::Backreference {
                 src: _,
                 invert: _,
                 len: _,
-            } => 2,
+            } => 4,
             Command::Stop => 0,
         };
 
