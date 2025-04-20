@@ -55,6 +55,9 @@ fn get_candidates(src: &[u8], i: usize) -> Vec<Command> {
         candidates.push(Command::WordFill { data: word, len });
         if len == Command::MAX_LEN {
             // Skip considering other block types if this is a max-size block:
+            // This can speed up compression significantly, because large
+            // blocks of repeated data would trigger worst-case slow behavior
+            // in the backreference search.
             return candidates;
         }
     }
