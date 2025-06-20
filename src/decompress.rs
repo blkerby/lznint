@@ -7,7 +7,7 @@ pub fn decompress(mut src: &[u8]) -> Result<Vec<u8>, DecompressionError> {
     loop {
         match read_cmd(&mut src)? {
             Command::Copy(buf) => dst.extend_from_slice(buf),
-            Command::ByteFill { data, len } => dst.extend(std::iter::repeat(data).take(len)),
+            Command::ByteFill { data, len } => dst.extend(std::iter::repeat_n(data, len)),
             Command::WordFill { data, len } => {
                 dst.extend(std::iter::repeat(data.to_le_bytes()).flatten().take(len))
             }
