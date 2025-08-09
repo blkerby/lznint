@@ -35,7 +35,7 @@ pub fn compress(src: &[u8]) -> Vec<u8> {
     dst
 }
 
-fn get_candidates(src: &[u8], i: usize) -> Vec<Command> {
+fn get_candidates(src: &[u8], i: usize) -> Vec<Command<'_>> {
     let mut candidates = vec![];
 
     if src.len() - i >= 2 {
@@ -90,7 +90,7 @@ fn get_candidates(src: &[u8], i: usize) -> Vec<Command> {
     candidates
 }
 
-fn find_best(src: &[u8], i: usize) -> Command {
+fn find_best(src: &[u8], i: usize) -> Command<'_> {
     let mut candidates = get_candidates(src, i);
 
     // We want to prioritize earlier candidates in case of ties, but max_by prioritizes last.
@@ -107,7 +107,7 @@ fn find_best(src: &[u8], i: usize) -> Command {
         .unwrap()
 }
 
-fn find_best_backreference(src: &[u8], i: usize) -> Option<Command> {
+fn find_best_backreference(src: &[u8], i: usize) -> Option<Command<'_>> {
     let mut best_relative = (0, false, 0); // a (j, inv, len) pair
     let farthest_relative = i - std::cmp::min(i, 255);
     for j in farthest_relative..i {
