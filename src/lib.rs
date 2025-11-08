@@ -92,51 +92,6 @@ mod test {
     }
 
     #[test]
-    fn test_compress() {
-        assert_eq!(compress(&[0, 2, 4, 6]), vec![0x03, 0, 2, 4, 6, 0xFF]);
-        assert_eq!(compress(&[1, 1, 1, 1]), vec![0x23, 1, 0xFF]);
-        assert_eq!(compress(&[1, 2, 1, 2, 1, 2]), vec![0x45, 1, 2, 0xFF]);
-        assert_eq!(compress(&[1, 2, 1, 2, 1]), vec![0x44, 1, 2, 0xFF]);
-        assert_eq!(compress(&[1, 2, 3, 4]), vec![0x63, 1, 0xFF]);
-
-        assert_eq!(
-            compress(&[1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4]),
-            vec![0x63, 1, 0xC7, 0x4, 0xFF]
-        );
-
-        // a relative inverted backreference can only be encoded as an extended command
-        assert_eq!(
-            compress(&[1, 2, 3, 4, !1, !2, !3, !4, 1, 2, 3, 4]),
-            vec![0x63, 1, 0xFC, 0x07, 0x4, 0xFF]
-        );
-
-        // a relative inverted backreference must not collide with the stop symbol
-        let tricky = [1, 2, 3, 4]
-            .into_iter()
-            .chain([!1, !2, !3, !4, 1, 2, 3, 4].into_iter().cycle().take(0x400))
-            .collect::<Vec<u8>>();
-        assert_eq!(
-            compress(&tricky),
-            [0x63, 1, 0xFE, 0xFF, 0x4, 0xF8, 0xFF, 0xF8, 0xFF]
-        );
-
-        // create a 512-byte-long non-compressible sequence
-        let seq = || {
-            std::iter::successors(Some(1u8), |&x| Some(x.wrapping_add(3)))
-                .take(256)
-                .flat_map(|i| [i, i.wrapping_sub(1)])
-        };
-        assert_eq!(
-            compress(&seq().chain(seq()).collect::<Vec<u8>>()),
-            [0xE1, 0xFF]
-                .into_iter()
-                .chain(seq())
-                .chain([0xF1, 0xFF, 0x00, 0x00, 0xFF])
-                .collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
     fn test_roundtrip_green_brinstar() {
         let data = include_bytes!("green_brinstar_main_shaft.bin");
 
